@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Notes</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/0.14.0/react.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/0.14.0/react-dom.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-core/5.6.15/browser.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/masonry/3.3.2/masonry.pkgd.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="style.css">
+</head>
+<body>
+    <div id='mount-point'></div>
+
+    <script type="text/babel">
+        const favoriteColors = [
+    {   id: 0,
+        color: "yellow"
+    },
+    {   id: 1,
+        color: "#DB3340"
+    },
+    {   id: 2,
+        color: "#F7EAC8"
+    },
+    {   id: 3,
+        color: "#1FDA9A"
+    },
+    {   id: 4,
+        color: "#28ABE3"
+    }];
+
+const Note = React.createClass({
+    render: function() {
+        const style = { backgroundColor: this.props.color };
+        return (
+            <div className="note" style={style}>
+                <span className="delete-note" onClick={this.props.onDelete}> × </span>
+                {this.props.children}
+            </div>
+        );
+    }
+});
+
+const NoteEditor = React.createClass({
+    getInitialState: function() {
+        return {
+            text: '',
+            color: favoriteColors[0].color,
+        };
+    },
+
+    handleTextChange: function(event) {
+        this.setState({ text: event.target.value });
+    },
+
+    handleNoteAdd: function() {
+        const newNote = {
+            text: this.state.text,
+            color: this.state.color,
+            id: Date.now()
+        };
+
+        this.props.onNoteAdd(newNote);
+        this.setState({ text: ''});
+    },
+
+    handleChangeColor: function (elem) {
+        const newColor = elem.target.dataset.color;
+        this.setState({color: newColor});
+        function clearActiveColor() {
+           document.querySelectorAll('.note__color-active').forEach(el => {
+               el.classList.remove('note__color-active');
+           })
+        }
+        clearActiveColor();
+
+        elem.target.classList.add('note__color-active');
+    },
+
+    render: function() {
+        return (
+            <div className="note-editor">
+                <textarea
+                    placeholder="Enter your note here..."
+                    rows={5}
+                    className="textarea"
+                    value={this.state.text}
+                    onChange={this.handleTextChange}
+                />
+                <div className="note-editor__colors">
+                    {favoriteColors.map((elem)=> {
+                       return(
+                           <span className="note__color"
+                                 style={{backgroundColor: elem.color}}
+                                 key={elem.id}
+                                 data-color={elem.color}
+                                 onClick={this.handleChangeColor}
+                           > </span>
+                       )
+                    })}
+                </div>
+                <button className="add-button" onClick={this.handleNoteAdd}>Add</button>
+            </div>
+        );
+    }
+});
+
+const NoteSearch = React.createClass({
+    handleChange: function (evt) {
+        const query = evt.target.value.toLowerCase();
+        this.props.onNoteSearch(query);
+    },
+
+    render: function () {
+        return (
+            <input type="text"
+                   className="note__search"
+                   placeholder="Notes name..."
+                   onChange={this.handleChange}
+            />
+        )
+    }
+});
+
+const NotesGrid = React.createClass({
+    componentDidMount: function() {
+        const grid = this.refs.grid;
+        this.msnry = new Masonry( grid, {
+            itemSelector: '.note',
+            columnWidth: 200,
+            gutter: 10,
+            isFitWidth: true
+        });
+    },
+
+    componentDidUpdate: function(prevProps) {
+        if (this.props.notes.length !== prevProps.notes.length) {
+            this.msnry.reloadItems();
+            this.msnry.layout();
+        }
+    },
+
+    render: function() {
+        const onNoteDelete = this.props.onNoteDelete;
+
+        return (
+            <div className="notes-grid" ref="grid">
+                {
+                    this.props.notes.map(function(note){
+                        return (
+                            <Note
+                                key={note.id}
+                                onDelete={onNoteDelete.bind(null, note)}
+                                color={note.color}>
+                                {note.text}
+                            </Note>
+                        );
+                    })
+                }
+            </div>
+        );
+    }
+});
+
+const NotesApp = React.createClass({
+    getInitialState: function() {
+        return {
+            startNotes: [],
+            notes: [],
+        };
+    },
+
+    componentDidMount: function() {
+        const localNotes = JSON.parse(localStorage.getItem('notes'));
+        if (localNotes) {
+            this.setState({ notes: localNotes, startNotes: localNotes });
+        }
+    },
+
+    componentDidUpdate: function() {
+        this._updateLocalStorage();
+    },
+
+    handleNoteDelete: function(note) {
+        const noteId = note.id;
+        const newNotes = this.state.notes.filter(function(note) {
+            return note.id !== noteId;
+        });
+        this.setState({ notes: newNotes, startNotes: newNotes });
+    },
+
+    handleNoteAdd: function(newNote) {
+        const newNotes = this.state.notes.slice();
+        newNotes.unshift(newNote);
+        this.setState({ notes: newNotes, startNotes: newNotes });
+    },
+
+    handleNoteSearch: function (query) {
+        const newNotes = this.state.startNotes.filter(note => {
+                const searchStr = note.text.toLowerCase();
+                return searchStr.indexOf(query) !== -1;
+            });
+            this.setState({
+                notes: newNotes
+            });
+    },
+
+    render: function() {
+        return (
+            <div className="notes-app">
+                <h2 className="app-header">NotesApp</h2>
+                <NoteSearch onNoteSearch={this.handleNoteSearch}/>
+                <NoteEditor onNoteAdd={this.handleNoteAdd} />
+                <NotesGrid notes={this.state.notes} onNoteDelete={this.handleNoteDelete} />
+            </div>
+        );
+    },
+
+    _updateLocalStorage: function() {
+        const notes = JSON.stringify(this.state.notes);
+        localStorage.setItem('notes', notes);
+    }
+});
+
+ReactDOM.render(
+    <NotesApp />,
+    document.getElementById('mount-point')
+);
+
+    </script>
+</body>
+</html>
+
